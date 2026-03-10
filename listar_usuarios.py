@@ -15,5 +15,8 @@ for user in users:
     print(f'Email confirmado: {user.email_confirmado}')
     print(f'Token confirmação: {user.token_confirmacao[:20] if user.token_confirmacao else None}...')
     print('-' * 50)
+    # mostrar a senha não é recomendado, mas para fins de teste:
+    print(f'Senha (hash): {user.senha_hashed}')
+
 
 db.close()

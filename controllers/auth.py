@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.usuario import Usuario
 from schemas.usuario import CriarUser, RespostaUsuario
-from schemas.auth import LoginRequest, Token
+from schemas.auth import LoginRequest, RedefinirSenhaRequest,RecuperarSenhaRequest,Token
 from utils.senha import hash_senha, verificar_senha
 from utils.jwt import criar_acesso_token
-from utils.email import gerar_token_confirmacao, enviar_email_confirmacao
+from utils.email import gerar_token_confirmacao, enviar_email_confirmacao, enviar_email_recuperacao
 from middleware.auth import obter_usuario_atual
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
@@ -112,7 +112,6 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     Returns:
         RespostaUsuario com dados do usuário criado
     """
-    
     # Verifica se o email existe
     
     usuario = db.query(Usuario).filter(Usuario.nomeUsuario == login_data.nomeUsuario).first()
@@ -141,3 +140,67 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     token_acesso = criar_acesso_token({"sub": usuario.nomeUsuario})
 
     return {"acesso_token": token_acesso, "token_tipo": "bearer"}
+
+
+# Rota para enviar email de recuperação de senha
+@router.post("/recuperar-senha")
+async def recuperar_senha(dados: RecuperarSenhaRequest, db: Session = Depends(get_db)):
+    """
+    Envia um email para o usuário com um link para redefinir a senha
+    Args:
+        dados: Dados do usuário para recuperação de senha (email)
+        db: Sessão do banco de dados
+    Returns:
+        Mensagem de sucesso ou erro
+    """
+    usuario = db.query(Usuario).filter(Usuario.email == dados.email).first()
+
+    if not usuario:
+        return {"message": "Se o email estiver registrado, um email de recuperação de senha será enviado!"}
+    # Gera token de recuperação de senha
+    token_recuperacao = gerar_token_confirmacao()
+    usuario.token_confirmacao = token_recuperacao
+    db.commit()
+    # Envia email de recuperação de senha
+    await enviar_email_recuperacao(
+        destinatario=usuario.email,
+        token=token_recuperacao
+    )
+    return {"message": "Email de recuperação de senha enviado! Verifique sua caixa de entrada."}
+
+# Rota para realmente redefinir a senha usando o token
+@router.post("/redefinir-senha")
+async def redefinir_senha(redefinir_data: RedefinirSenhaRequest, db: Session = Depends(get_db)):
+    """
+    Redefine a senha do usuário usando o token de recuperação
+    Args:
+        redefinir_data: Dados para redefinir a senha (email, token, nova_senha)
+        db: Sessão do banco de dados
+    Returns:
+        Mensagem de sucesso ou erro
+    """
+    
+    usuario = db.query(Usuario).filter(Usuario.email == redefinir_data.email).first()
+
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email não registrado"
+        )
+
+    if usuario.token_confirmacao != redefinir_data.token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token inválido"
+        )
+
+    # Redefine a senha
+    usuario.senha_hashed = hash_senha(redefinir_data.nova_senha)
+    usuario.token_confirmacao = None  # Invalida o token após uso
+    db.commit()
+
+    return {"message": "Senha redefinida com sucesso! Agora você pode fazer login com a nova senha."}
+        
+    
+    
+    

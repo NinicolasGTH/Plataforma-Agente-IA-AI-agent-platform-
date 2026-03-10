@@ -27,7 +27,28 @@ async def enviar_email_confirmacao(destinatario: str, token: str) -> bool:
     # Mock - sempre retorna sucesso
     print(f"[EMAIL MOCK] Link de confirmação: {link_confirmacao}")
     return True
+
+async def enviar_email_recuperacao(destinatario: str, token: str) -> bool:
+    """
+    Envia email de recuperação de senha para o usuário.
+    Por enquanto apenas retorna True (mock).
+    Quando tiver RESEND_API_KEY configurado, descomentar o código real. 
+    """
+    link_recuperacao = f"{FRONTEND_URL}/redefinir-senha?token={token}&email={destinatario}"
     
+    # Mock - sempre retorna sucesso
+    print(f"[EMAIL MOCK] Link de recuperação: {link_recuperacao}")
+    return True
+
+   
+   
+   
+   
+   
+   
+   
+   
+   
     # Código real do Resend (descomentar quando configurar):
     # import resend
     # resend.api_key = os.getenv("RESEND_API_KEY")
