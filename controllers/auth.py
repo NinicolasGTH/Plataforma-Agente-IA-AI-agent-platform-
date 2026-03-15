@@ -8,11 +8,12 @@ from utils.senha import hash_senha, verificar_senha
 from utils.jwt import criar_acesso_token
 from utils.email import gerar_token_confirmacao, enviar_email_confirmacao, enviar_email_recuperacao
 from middleware.auth import obter_usuario_atual
+from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
 @router.post("/register", response_model=RespostaUsuario, status_code=status.HTTP_201_CREATED)
-async def registar(user_data: CriarUser, db: Session = Depends(get_db)):
+async def registrar(user_data: CriarUser, db: Session = Depends(get_db)):
     """
     Registra um novo usuario e envia email de confirmação (ENDPOINT: /auth/register)
 
@@ -55,7 +56,8 @@ async def registar(user_data: CriarUser, db: Session = Depends(get_db)):
         nomeUsuario=user_data.nomeUsuario,
         senha_hashed=senha_hashed,
         email_confirmado=False,
-        token_confirmacao=token_confirmacao
+        token_confirmacao=token_confirmacao,
+        status="Pendente"
     )
 
     db.add(novo_usuario)
@@ -64,10 +66,14 @@ async def registar(user_data: CriarUser, db: Session = Depends(get_db)):
 
 # Enviar email de confirmação
 
-    await enviar_email_confirmacao(
+    enviado = await enviar_email_confirmacao(
         destinatario=novo_usuario.email,
         token=token_confirmacao
-    )   
+    )
+    if enviado:
+        novo_usuario.email_confirmacao_enviado = True
+        db.commit()
+
     return novo_usuario
 
 @router.get("/confirmar-email")
@@ -96,6 +102,7 @@ async def confirmar_email(token: str, db: Session = Depends(get_db)):
 
     usuario.email_confirmado = True
     usuario.token_confirmacao = None
+    usuario.status = "Ativo"
     db.commit()
 
     return {"message": "Email confirmado com sucesso! Agora você pode fazer login."}
@@ -159,7 +166,8 @@ async def recuperar_senha(dados: RecuperarSenhaRequest, db: Session = Depends(ge
         return {"message": "Se o email estiver registrado, um email de recuperação de senha será enviado!"}
     # Gera token de recuperação de senha
     token_recuperacao = gerar_token_confirmacao()
-    usuario.token_confirmacao = token_recuperacao
+    usuario.token_redefinicao = token_recuperacao
+    usuario.token_redefinicao_expira = datetime.now() + timedelta(hours=1) # Token só vale por 1 hora
     db.commit()
     # Envia email de recuperação de senha
     await enviar_email_recuperacao(
@@ -188,15 +196,21 @@ async def redefinir_senha(redefinir_data: RedefinirSenhaRequest, db: Session = D
             detail="Email não registrado"
         )
 
-    if usuario.token_confirmacao != redefinir_data.token:
+    if usuario.token_redefinicao != redefinir_data.token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Token inválido"
         )
+    if usuario.token_redefinicao_expira < datetime.now():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token expirado"
+        )
 
     # Redefine a senha
     usuario.senha_hashed = hash_senha(redefinir_data.nova_senha)
-    usuario.token_confirmacao = None  # Invalida o token após uso
+    usuario.token_redefinicao = None # Invalida o token após uso
+    usuario.token_redefinicao_expira = None  # Invalida o token após uso
     db.commit()
 
     return {"message": "Senha redefinida com sucesso! Agora você pode fazer login com a nova senha."}

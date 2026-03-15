@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #080808;
+    padding: 30px 10px;
+    margin: 0;
+  }
+  .card {
+    max-width: 600px;
+    background: linear-gradient(180deg, #0f1a1a 0%, #080808 100%);
+    margin: auto;
+    border-radius: 32px;
+    padding: 40px 36px;
+    border: 1px solid rgba(0,255,255,0.07);
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .logo {
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: #00e5ff;
+    background: rgba(0,229,255,0.06);
+    border: 1px solid rgba(0,229,255,0.2);
+    display: inline-block;
+    padding: 6px 18px;
+    border-radius: 999px;
+  }
+  .title {
+    font-size: 28px;
+    font-weight: 900;
+    color: #e0f7fa;
+    margin-top: 20px;
+    line-height: 1.2;
+  }
+  .title span {
+    color: #00e5ff;
+  }
+  .content {
+    font-size: 15px;
+    color: #9ca3af;
+    line-height: 1.7;
+  }
+  .content p {
+    margin: 12px 0;
+  }
+  .content strong {
+    color: #e0f7fa;
+  }
+  .btn-wrap {
+    text-align: center;
+    margin: 32px 0;
+  }
+  .btn {
+    display: inline-block;
+    padding: 16px 36px;
+    background: linear-gradient(to right, #00e5ff, #0097a7);
+    color: #080808;
+    text-decoration: none;
+    border-radius: 16px;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 0.03em;
+  }
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(0,229,255,0.12), transparent);
+    margin: 28px 0;
+  }
+  .warning {
+    font-size: 13px;
+    color: rgba(255,255,255,0.3);
+    text-align: center;
+    margin-top: 8px;
+  }
+  .note {
+    font-size: 12px;
+    color: rgba(255,255,255,0.2);
+    text-align: center;
+    margin-top: 8px;
+  }
+  .footer {
+    margin-top: 36px;
+    font-size: 11px;
+    text-align: center;
+    color: rgba(255,255,255,0.2);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <span class="logo">Agente IA</span>
+      <div class="title">Redefinição de <span>senha</span></div>
+    </div>
+
+    <div class="content">
+      <p>Olá, <strong>{{nome}}</strong>.</p>
+      <p>Recebemos uma solicitação para redefinir a senha da sua conta no Agente IA. Clique no botão abaixo para criar uma nova senha:</p>
+
+      <div class="btn-wrap">
+        <a class="btn" href="{{link_redefinicao}}">Redefinir minha senha</a>
+      </div>
+
+      <div class="divider"></div>
+
+      <p class="warning">⚠ Este link é válido por <strong>1 hora</strong>.</p>
+      <p class="note">Se você não solicitou a redefinição de senha, ignore este e-mail. Sua senha permanece a mesma.</p>
+    </div>
+
+    <div class="footer">
+      © 2026 Agente IA<br>
+      Este é um e-mail automático. Não responda esta mensagem.
+    </div>
+  </div>
+</body>
+</html>
