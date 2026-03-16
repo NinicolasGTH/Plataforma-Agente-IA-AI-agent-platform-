@@ -182,25 +182,20 @@ async def redefinir_senha(redefinir_data: RedefinirSenhaRequest, db: Session = D
     """
     Redefine a senha do usuário usando o token de recuperação
     Args:
-        redefinir_data: Dados para redefinir a senha (email, token, nova_senha)
+        redefinir_data: Dados para redefinir a senha (token, nova_senha)
         db: Sessão do banco de dados
     Returns:
         Mensagem de sucesso ou erro
     """
     
-    usuario = db.query(Usuario).filter(Usuario.email == redefinir_data.email).first()
+    usuario = db.query(Usuario).filter(Usuario.token_redefinicao == redefinir_data.token).first()
 
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email não registrado"
-        )
-
-    if usuario.token_redefinicao != redefinir_data.token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Token inválido"
         )
+
     if usuario.token_redefinicao_expira < datetime.now():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
