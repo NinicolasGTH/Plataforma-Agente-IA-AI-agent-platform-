@@ -59,20 +59,33 @@ async def registrar(user_data: CriarUser, db: Session = Depends(get_db)):
         token_confirmacao=token_confirmacao,
         status="Pendente"
     )
-
-    db.add(novo_usuario)
-    db.commit()
-    db.refresh(novo_usuario)
+    try:
+        db.add(novo_usuario)
+        db.commit()
+        db.refresh(novo_usuario)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao criar usuário"
+            ) 
+    
 
 # Enviar email de confirmação
-
-    enviado = await enviar_email_confirmacao(
+    try:
+        enviado = await enviar_email_confirmacao(
         destinatario=novo_usuario.email,
         token=token_confirmacao
     )
-    if enviado:
-        novo_usuario.email_confirmacao_enviado = True
-        db.commit()
+        if enviado:
+            novo_usuario.email_confirmacao_enviado = True
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao enviar email de confirmação"
+        ) 
+    db.commit()
 
     return novo_usuario
 

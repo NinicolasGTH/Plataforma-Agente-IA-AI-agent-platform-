@@ -17,9 +17,11 @@ class Usuario(Base):
     token_redefinicao = Column(String, nullable=True)
     token_redefinicao_expira = Column(DateTime, nullable=True)
     email_confirmacao_enviado = Column(Boolean, default=False)
-    mensagem_hoje = Column(Integer, default=0)
-    data_reset_mensagem = Column(DateTime, nullable=True)
-    plano = Column(String, default="Gratuito")  # "Gratuito", "Premium"
+    mensagens_hoje = Column(Integer, default=0)
+    data_reset_mensagens = Column(DateTime, nullable=True)
+    stripe_customer_id = Column(String, nullable=True)
+    stripe_subscription_id = Column(String, nullable=True)
+    plano = Column(String, default="Gratuito")  # "Gratuito", "Pro"
     status = Column(String, default="Pendente")  # "Pendente", "Ativo", "Inativo"
 
     conversas = relationship("Conversa", back_populates="usuario")
