@@ -17,9 +17,11 @@ load_dotenv()
 app = FastAPI(title="Meu Projeto com Strands e Groq", version="1.0.0")
 
 
+origens_permitidas = os.getenv("ORIGENS_PERMITIDAS", "*").split(",")  # Permitir origens definidas no .env ou todas as origens
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permitir todas as origens (ajuste conforme necessário)
+    allow_origins=origens_permitidas,
     allow_credentials=True, # Permitir envio de cookies e credenciais
     allow_methods=["*"],  # Permitir todos os métodos HTTP
     allow_headers=["*"],  # Permitir todos os headers

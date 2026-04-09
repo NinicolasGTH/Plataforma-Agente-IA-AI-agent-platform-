@@ -19,8 +19,8 @@ class Usuario(Base):
     email_confirmacao_enviado = Column(Boolean, default=False)
     mensagens_hoje = Column(Integer, default=0)
     data_reset_mensagens = Column(DateTime, nullable=True)
-    stripe_customer_id = Column(String, nullable=True)
-    stripe_subscription_id = Column(String, nullable=True)
+    stripe_customer_id = Column(String, unique=True, nullable=True)
+    stripe_subscription_id = Column(String, unique=True, nullable=True)
     plano = Column(String, default="Gratuito")  # "Gratuito", "Pro"
     status = Column(String, default="Pendente")  # "Pendente", "Ativo", "Inativo"
 

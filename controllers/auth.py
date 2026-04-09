@@ -112,11 +112,17 @@ async def confirmar_email(token: str, db: Session = Depends(get_db)):
     )
 
 # Confirma email
-
-    usuario.email_confirmado = True
-    usuario.token_confirmacao = None
-    usuario.status = "Ativo"
-    db.commit()
+    try:
+        usuario.email_confirmado = True
+        usuario.token_confirmacao = None
+        usuario.status = "Ativo"
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao confirmar email"
+        )
 
     return {"message": "Email confirmado com sucesso! Agora você pode fazer login."}
 
@@ -178,10 +184,17 @@ async def recuperar_senha(dados: RecuperarSenhaRequest, db: Session = Depends(ge
     if not usuario:
         return {"message": "Se o email estiver registrado, um email de recuperação de senha será enviado!"}
     # Gera token de recuperação de senha
-    token_recuperacao = gerar_token_confirmacao()
-    usuario.token_redefinicao = token_recuperacao
-    usuario.token_redefinicao_expira = datetime.now() + timedelta(hours=1) # Token só vale por 1 hora
-    db.commit()
+    try:
+        token_recuperacao = gerar_token_confirmacao()
+        usuario.token_redefinicao = token_recuperacao
+        usuario.token_redefinicao_expira = datetime.now() + timedelta(hours=1) # Token só vale por 1 hora
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao gerar token de recuperação de senha"
+        )
     # Envia email de recuperação de senha
     await enviar_email_recuperacao(
         destinatario=usuario.email,
@@ -205,7 +218,7 @@ async def redefinir_senha(redefinir_data: RedefinirSenhaRequest, db: Session = D
 
     if not usuario:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            statuws_code=status.HTTP_400_BAD_REQUEST,
             detail="Token inválido"
         )
 
@@ -214,12 +227,18 @@ async def redefinir_senha(redefinir_data: RedefinirSenhaRequest, db: Session = D
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Token expirado"
         )
-
+    try:
     # Redefine a senha
-    usuario.senha_hashed = hash_senha(redefinir_data.nova_senha)
-    usuario.token_redefinicao = None # Invalida o token após uso
-    usuario.token_redefinicao_expira = None  # Invalida o token após uso
-    db.commit()
+        usuario.senha_hashed = hash_senha(redefinir_data.nova_senha)
+        usuario.token_redefinicao = None # Invalida o token após uso
+        usuario.token_redefinicao_expira = None  # Invalida o token após uso
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao redefinir senha"
+        )
 
     return {"message": "Senha redefinida com sucesso! Agora você pode fazer login com a nova senha."}
         

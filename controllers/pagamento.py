@@ -183,6 +183,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
                 usuario.stripe_subscription_id = None
 
         marcar_evento_processado(db, event_id, event_type)
+    try:
         db.commit()
         
         logger.info("Evento processado: %s (%s)", event_id, event_type)
