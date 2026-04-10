@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from database import get_db
 from models.usuario import Usuario
@@ -9,11 +9,13 @@ from utils.jwt import criar_acesso_token
 from utils.email import gerar_token_confirmacao, enviar_email_confirmacao, enviar_email_recuperacao
 from middleware.auth import obter_usuario_atual
 from datetime import datetime, timedelta
+from limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
 @router.post("/register", response_model=RespostaUsuario, status_code=status.HTTP_201_CREATED)
-async def registrar(user_data: CriarUser, db: Session = Depends(get_db)):
+@limiter.limit("5/minute") # Limite de 5 requisições por minuto para registro
+async def registrar(request: Request, user_data: CriarUser, db: Session = Depends(get_db)):
     """
     Registra um novo usuario e envia email de confirmação (ENDPOINT: /auth/register)
 
@@ -127,7 +129,8 @@ async def confirmar_email(token: str, db: Session = Depends(get_db)):
     return {"message": "Email confirmado com sucesso! Agora você pode fazer login."}
 
 @router.post("/login", response_model=Token)
-async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute") # Limite de 5 requisições por minuto para login
+async def login(request: Request, login_data: LoginRequest, db: Session = Depends(get_db)):
     """
     Realiza o login do usuário
     
@@ -170,7 +173,8 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
 
 # Rota para enviar email de recuperação de senha
 @router.post("/recuperar-senha")
-async def recuperar_senha(dados: RecuperarSenhaRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+async def recuperar_senha(request: Request, dados: RecuperarSenhaRequest, db: Session = Depends(get_db)):
     """
     Envia um email para o usuário com um link para redefinir a senha
     Args:
@@ -218,7 +222,7 @@ async def redefinir_senha(redefinir_data: RedefinirSenhaRequest, db: Session = D
 
     if not usuario:
         raise HTTPException(
-            statuws_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Token inválido"
         )
 

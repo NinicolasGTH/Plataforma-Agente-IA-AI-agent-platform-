@@ -48,7 +48,7 @@ def marcar_evento_processado(db: Session, event_id: str, event_type: str) -> Non
     
     # O importante é garantir que marcar_evento_processado seja chamada apenas uma vez por evento, e que o evento_ja_processado seja verificado no início do processamento do webhook para evitar processar o mesmo evento mais de uma vez.
     
-def buscar_usuario_por_subscription(db: Session, subscription_id: str) -> Usuario:
+def buscar_usuario_por_subscription(db: Session, subscription_id: str) -> Usuario | None:
     """Busca um usuário no banco de dados pelo ID da assinatura do Stripe (útil para webhooks)"""
     return db.query(Usuario).filter(Usuario.stripe_subscription_id == subscription_id).first()
 
@@ -82,7 +82,7 @@ async def criar_checkout(
     except stripe.StripeError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao criar sessão de pagamento: {str(e)}"
+            detail=f"Erro interno ao criar sessão de checkout: {str(e)}"
         )
         
 # ─────────────────────────────────────────
@@ -92,8 +92,8 @@ async def criar_checkout(
 # O Stripe enviará uma notificação para este endpoint sempre que houver uma mudança no status da assinatura do usuário (ex: pagamento aprovado, falhou, cancelado). O backend processará essa notificação e atualizará o plano do usuário conforme necessário.
 @router.post("/webhook")
 async def webhook(request: Request, db: Session = Depends(get_db)):
-    validar_config_stripe(para_webhook=True) # True pois neste endpoint precisamos validar apenas as variáveis de ambiente do Stripe necessárias para processar o webhook (STRIPE_SECRET_KEY e STRIPE_WEBHOOK_SECRET)
     """Recebe eventos do Stripe e atualiza  o plano do usuário conforme o status da assinatura (ENDPOINT: /pagamento/webhook)"""
+    validar_config_stripe(para_webhook=True) # True pois neste endpoint precisamos validar apenas as variáveis de ambiente do Stripe necessárias para processar o webhook (STRIPE_SECRET_KEY e STRIPE_WEBHOOK_SECRET)
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
     
@@ -136,7 +136,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     try:
         if event_type == "checkout.session.completed":
             usuario_id = data.get("metadata", {}).get("usuario_id")
-            if usuario_id:
+            if usuario_id and str(usuario_id).isdigit():
                 usuario = db.query(Usuario).filter(Usuario.id == int(usuario_id)).first()
                 if usuario:
                     usuario.plano = "Pro"
@@ -146,21 +146,24 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
         
         elif event_type == "invoice.payment_succeeded":
             subscription_id = data.get("subscription")
-            usuario = buscar_usuario_por_subscription(db, subscription_id)
-            if usuario:
-                usuario.plano = "Pro"
-                usuario.status = "Ativo"
+            if subscription_id:
+                usuario = buscar_usuario_por_subscription(db, subscription_id)
+                if usuario:
+                    usuario.plano = "Pro"
+                    usuario.status = "Ativo"
                 
         elif event_type == "invoice.payment_failed":
             subscription_id = data.get("subscription")
-            usuario = buscar_usuario_por_subscription(db, subscription_id)
-            if usuario:
-                usuario.status = "Inadimplente"
+            if subscription_id:
+                usuario = buscar_usuario_por_subscription(db, subscription_id)
+                if usuario:
+                    usuario.status = "Inadimplente"
         
         elif event_type == "customer.subscription.updated":
             subscription_id = data.get("id")
             subscription_status = data.get("status")
-            usuario = buscar_usuario_por_subscription(db, subscription_id)
+            if subscription_id:
+                usuario = buscar_usuario_por_subscription(db, subscription_id)
             
             if usuario:
                 if subscription_status in ["active", "trialing", "past_due"]:
@@ -176,15 +179,16 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
         
         elif event_type == "customer.subscription.deleted":
             subscription_id = data.get("id")
-            usuario = buscar_usuario_por_subscription(db, subscription_id)
-            if usuario:
-                usuario.plano = "Gratuito"
-                usuario.status = "Inativo"
-                usuario.stripe_subscription_id = None
+            if subscription_id:
+                usuario = buscar_usuario_por_subscription(db, subscription_id)
+                if usuario:
+                    usuario.plano = "Gratuito"
+                    usuario.status = "Inativo"
+                    usuario.stripe_subscription_id = None
 
         marcar_evento_processado(db, event_id, event_type)
-    try:
         db.commit()
+    
         
         logger.info("Evento processado: %s (%s)", event_id, event_type)
         return {"status": "ok", "duplicado": False}
@@ -194,7 +198,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
         logger.exception("Erro ao processar evento Stripe %s (%s): %s", event_id, event_type, str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao processar evento Stripe: {str(e)}"
+            detail=f"Erro ao processar evento Stripe."
         )             
                         
 # ─────────────────────────────────────────

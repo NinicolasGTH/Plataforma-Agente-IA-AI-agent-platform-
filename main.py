@@ -6,16 +6,34 @@ from controllers.chat import router as chat_router
 from controllers.conversas import router as conversas_router
 from controllers.pagamento import router as pagamento_router
 from fastapi.middleware.cors import CORSMiddleware
+from limiter import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from contextlib import asynccontextmanager
 import os
+
 
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
 
-# A chave da api vem do arquivo .env
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Gerencia o ciclo de vida do aplicativo, criando as tabelas no banco de dados ao iniciar e fechando a conexão ao finalizar.
+    """
+    # Criar tabelas no banco de dados
+    Base.metadata.create_all(bind=engine)
+    print("\n API rodando em http://localhost:8000 e documentação em http://localhost:8000/docs. Banco de dados iniciado com sucesso. \n")
+    yield
+    # Aqui você pode adicionar código para fechar conexões ou realizar outras tarefas de limpeza se necessário
+
 
 # Aplicativo FastAPI
-app = FastAPI(title="Meu Projeto com Strands e Groq", version="1.0.0")
+app = FastAPI(title="Meu Projeto com Strands e Groq", version="1.0.0", lifespan=lifespan)
 
+# Adicionar middleware do limiter, que é responsável por limitar a taxa de requisições para evitar abusos e sobrecarga do servidor. O limiter é configurado para usar o endereço IP do cliente como chave para rastrear as requ
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 origens_permitidas = os.getenv("ORIGENS_PERMITIDAS", "*").split(",")  # Permitir origens definidas no .env ou todas as origens
 
@@ -47,7 +65,12 @@ app.include_router(pagamento_router) # é pagamento_router por conta de "router 
 
 
 
-
+@app.get("/")
+async def root():
+    """
+    Rota raiz para verificar se a API está funcionando (ENDPOINT: /)
+    """
+    return {"message": "API rodando. Acesse /docs para ver a documentação interativa."}
 
 
 
