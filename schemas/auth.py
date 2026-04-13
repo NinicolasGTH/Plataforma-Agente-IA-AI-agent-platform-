@@ -14,6 +14,5 @@ class RecuperarSenhaRequest(BaseModel):
     email: str
 
 class RedefinirSenhaRequest(BaseModel):
-    email: str
     token: str
     nova_senha: str = Field(..., min_length=6)

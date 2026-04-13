@@ -1,65 +1,78 @@
-import secrets
 import os
-from typing import Optional
+import secrets
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configurações de email
-EMAIL_FROM = os.getenv("EMAIL_FROM", "onboarding@example.com")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+BREVO_API_KEY = os.getenv("BREVO_API_KEY")
+EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
 def gerar_token_confirmacao() -> str:
-    """Gera um token seguro para confirmação de email"""
+    """Gera um token seguro para confirmação e redefinição de senha"""
     return secrets.token_urlsafe(32)
 
 
-async def enviar_email_confirmacao(destinatario: str, token: str) -> bool:
-    """
-    Envia email de confirmação para o novo usuário.
-    
-    Por enquanto apenas retorna True (mock).
-    Quando tiver RESEND_API_KEY configurado, descomentar o código real.
-    """
-    link_confirmacao = f"{FRONTEND_URL}/confirmar-email?token={token}"
-    
-    # Mock - sempre retorna sucesso
-    print(f"[EMAIL MOCK] Link de confirmação: {link_confirmacao}")
-    return True
+def _carregar_template(nome_template: str, dados: dict) -> str:
+    caminho = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "templates",
+        nome_template
+    )
+    with open(caminho, "r", encoding="utf-8") as f:
+        html = f.read()
+    for chave, valor in dados.items():
+        html = html.replace(f"{{{{{chave}}}}}", str(valor))
+    return html
 
-async def enviar_email_recuperacao(destinatario: str, token: str) -> bool:
-    """
-    Envia email de recuperação de senha para o usuário.
-    Por enquanto apenas retorna True (mock).
-    Quando tiver RESEND_API_KEY configurado, descomentar o código real. 
-    """
-    link_recuperacao = f"{FRONTEND_URL}/redefinir-senha?token={token}&email={destinatario}"
-    
-    # Mock - sempre retorna sucesso
-    print(f"[EMAIL MOCK] Link de recuperação: {link_recuperacao}")
-    return True
 
-   
-   
-   
-   
-   
-   
-   
-   
-   
-    # Código real do Resend (descomentar quando configurar):
-    # import resend
-    # resend.api_key = os.getenv("RESEND_API_KEY")
-    # try:
-    #     resend.Emails.send({
-    #         "from": EMAIL_FROM,
-    #         "to": [destinatario],
-    #         "subject": "Confirme seu email",
-    #         "html": f'<a href="{link_confirmacao}">Confirmar Email</a>'
-    #     })
-    #     return True
-    # except Exception as e:
-    #     print(f"Erro ao enviar email: {e}")
-    #     return False
+def _enviar(destinatario: str, assunto: str, html: str):
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={
+            "api-key": BREVO_API_KEY,
+            "Content-Type": "application/json",
+        },
+        json={
+            "sender": {"name": "Agente IA", "email": EMAIL_REMETENTE},
+            "to": [{"email": destinatario}],
+            "subject": assunto,
+            "htmlContent": html,
+        },
+        timeout=10,
+    )
+    if response.status_code not in (200, 201, 202):
+        raise Exception(f"Brevo erro {response.status_code}: {response.text}")
+
+
+async def enviar_email_confirmacao(destinatario: str, token: str, nome: str = None) -> bool:
+    """Envia email de confirmação de cadastro via Brevo"""
+    try:
+        link = f"{FRONTEND_URL}/confirmar-email?token={token}"
+        html = _carregar_template("email_verificacao.html", {
+            "nome": nome or destinatario,
+            "link_verificacao": link
+        })
+        _enviar(destinatario, "Confirme seu e-mail — Agente IA", html)
+        return True
+    except Exception as e:
+        print(f"[EMAIL] Erro ao enviar confirmação para {destinatario}: {e}")
+        return False
+
+
+async def enviar_email_recuperacao(destinatario: str, token: str, nome: str = None) -> bool:
+    """Envia email de redefinição de senha via Brevo"""
+    try:
+        link = f"{FRONTEND_URL}/redefinir-senha?token={token}"
+        html = _carregar_template("redefinicao_senha.html", {
+            "nome": nome or destinatario,
+            "link_redefinicao": link
+        })
+        _enviar(destinatario, "Redefinição de senha — Agente IA", html)
+        return True
+    except Exception as e:
+        print(f"[EMAIL] Erro ao enviar redefinição para {destinatario}: {e}")
+        return False

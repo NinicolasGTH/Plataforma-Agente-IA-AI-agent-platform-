@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+python-dotenv
+sqlalchemy
+psycopg2-binary
+langchain
+langchain-groq
+stripe
+slowapi
+python-jose[cryptography]
+python-multipart
+passlib[bcrypt]
+requests
+sympy
+bcrypt
+email-validator

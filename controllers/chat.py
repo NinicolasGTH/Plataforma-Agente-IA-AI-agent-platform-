@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 
 from database import get_db
 from models.usuario import Usuario
@@ -17,6 +17,8 @@ import os
 import requests
 import sympy
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
+
+from schemas import usuario
 
 
 # ─────────────────────────────────────────
@@ -121,9 +123,7 @@ Regras importantes:
 """)
 
 llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-tools = [calculator, get_weather, get_current_datetime]
-tools_map = {t.name: t for t in tools}
-llm_with_tools = llm.bind_tools(tools)
+
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -155,6 +155,8 @@ async def enviar_mensagem(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obter_usuario_atual)
 ):
+    
+    
     # Criar ou buscar conversa
     if not request.id_conversa:
         nova_conversa = Conversa(
@@ -181,7 +183,35 @@ async def enviar_mensagem(
     )
     db.add(mensagem_user)
     db.commit()
+    
+    # Verifica o limite de mensagens pro plano gratuito
+    if usuario.plano == "Gratuito":
+        hoje = date.today()
+        ultimo_reset = usuario.data_reset_mensagens
+    # Reseta o contador 
+        if not ultimo_reset or ultimo_reset.date() < hoje:
+            usuario.mensagens_hoje = 0
+            usuario.data_reset_mensagens = datetime.now()
+            db.commit()
+    
+    # Bloquear se ultrapassar o limite
+    
+        if usuario.mensagens_hoje >= 35:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+             detail="Limite diário de mensagens atingido. Considere fazer o upgrade para o plano pago para continuar utilizando o serviço"
+            ) 
+        usuario.mensagens_hoje += 1
+        db.commit()
 
+    if usuario.plano == "Gratuito":
+        tools_disponiveis = [calculator, get_current_datetime]
+    else:
+        tools_disponiveis = [calculator, get_weather, get_current_datetime]
+    
+    tools_map = {t.name: t for t in tools_disponiveis}
+    llm_with_tools = llm.bind_tools(tools_disponiveis)
+    
     try:
         print(f"[DEBUG] Chamando Groq com mensagem: {request.mensagem[:100]}...")
         response = llm_with_tools.invoke([SYSTEM_PROMPT, HumanMessage(content=request.mensagem)])
