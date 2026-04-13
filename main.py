@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 # Aplicativo FastAPI
 app = FastAPI(title="Meu Projeto com Strands e Groq", version="1.0.0", lifespan=lifespan)
 
-# Adicionar middleware do limiter, que é responsável por limitar a taxa de requisições para evitar abusos e sobrecarga do servidor. O limiter é configurado para usar o endereço IP do cliente como chave para rastrear as requ
+# Adicionar middleware do limiter, que é responsável por limitar a taxa de requisições para evitar abusos e sobrecarga do servidor. O limiter é configurado para usar o endereço IP do cliente como chave para rastrear as requisiçõoes.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -45,14 +45,6 @@ app.add_middleware(
     allow_headers=["*"],  # Permitir todos os headers
     # Alterar a permissão quando em produção para restringir as origens, métodos e headers conforme necessário
 )
-
-@app.on_event("startup")
-def criar_tabelas():
-    """
-    Cria as tabelas no banco de dados ao iniciar o aplicativo
-    """
-    Base.metadata.create_all(bind=engine)
-print("\n API rodando em http://localhost:8000 e documentação em http://localhost:8000/docs. Banco de dados iniciado com sucesso. \n")
 
 # incluir rotas
 

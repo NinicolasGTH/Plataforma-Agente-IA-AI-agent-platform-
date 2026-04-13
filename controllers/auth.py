@@ -10,8 +10,13 @@ from utils.email import gerar_token_confirmacao, enviar_email_confirmacao, envia
 from middleware.auth import obter_usuario_atual
 from datetime import datetime, timedelta
 from limiter import limiter
+import hashlib
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 @router.post("/register", response_model=RespostaUsuario, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute") # Limite de 5 requisições por minuto para registro
@@ -32,7 +37,7 @@ async def registrar(request: Request, user_data: CriarUser, db: Session = Depend
     if usuario_existente:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email já registrado"
+            detail="Não foi possível concluir o cadastro"
         )
 
     # Verifica se o nome de usuário já existe
@@ -40,7 +45,7 @@ async def registrar(request: Request, user_data: CriarUser, db: Session = Depend
     if usuario_existe:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="nome de usuário já registrado"
+            detail="Não foi possível concluir o cadastro"
         )
 
     # Criação do usuário com senha hasheada e token de confirmação
@@ -50,6 +55,7 @@ async def registrar(request: Request, user_data: CriarUser, db: Session = Depend
     # Gera token de confirmação
 
     token_confirmacao = gerar_token_confirmacao()
+    token_confirmacao_hash = _hash_token(token_confirmacao)
 
     # Criação de usuário
 
@@ -58,7 +64,7 @@ async def registrar(request: Request, user_data: CriarUser, db: Session = Depend
         nomeUsuario=user_data.nomeUsuario,
         senha_hashed=senha_hashed,
         email_confirmado=False,
-        token_confirmacao=token_confirmacao,
+        token_confirmacao=token_confirmacao_hash,
         status="Pendente"
     )
     try:
@@ -105,12 +111,13 @@ async def confirmar_email(token: str, db: Session = Depends(get_db)):
 
 # Buscar usuário pelo token
 
-    usuario = db.query(Usuario).filter(Usuario.token_confirmacao == token).first()
+    token_hash = _hash_token(token)
+    usuario = db.query(Usuario).filter(Usuario.token_confirmacao == token_hash).first()
 
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Token inválido"
+            detail="Token inválido ou expirado"
     )
 
 # Confirma email
@@ -148,21 +155,21 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nome de usuário não registrado"
+            detail="Credenciais inválidas"
         )
 
     # Verifica se a senha está correta
     if not verificar_senha(login_data.senha, usuario.senha_hashed):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Senha incorreta"
+            detail="Credenciais inválidas"
         )
 
     # Verifica se o email foi confirmado
     if not usuario.email_confirmado:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email não confirmado"
+            detail="Credenciais inválidas"
         )
 
     # Cria token de acesso
@@ -190,7 +197,8 @@ async def recuperar_senha(request: Request, dados: RecuperarSenhaRequest, db: Se
     # Gera token de recuperação de senha
     try:
         token_recuperacao = gerar_token_confirmacao()
-        usuario.token_redefinicao = token_recuperacao
+        token_recuperacao_hash = _hash_token(token_recuperacao)
+        usuario.token_redefinicao = token_recuperacao_hash
         usuario.token_redefinicao_expira = datetime.now() + timedelta(hours=1) # Token só vale por 1 hora
         db.commit()
     except Exception as e:
@@ -218,7 +226,8 @@ async def redefinir_senha(redefinir_data: RedefinirSenhaRequest, db: Session = D
         Mensagem de sucesso ou erro
     """
     
-    usuario = db.query(Usuario).filter(Usuario.token_redefinicao == redefinir_data.token).first()
+    token_hash = _hash_token(redefinir_data.token)
+    usuario = db.query(Usuario).filter(Usuario.token_redefinicao == token_hash).first()
 
     if not usuario:
         raise HTTPException(

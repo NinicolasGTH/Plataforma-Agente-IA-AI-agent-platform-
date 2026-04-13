@@ -14,6 +14,7 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 FRONTEND_URL = os.getenv("FRONTEND_URL")
+FRONTEND_URL_MOBILE = os.getenv("FRONTEND_URL_MOBILE")
 
 router = APIRouter(prefix="/pagamento", tags=["Pagamento"])
 
@@ -23,8 +24,8 @@ def validar_config_stripe(para_webhook: bool = False) -> None:
     faltando = []
     if not stripe.api_key:
         faltando.append("STRIPE_SECRET_KEY")
-    if not FRONTEND_URL and not para_webhook:
-        faltando.append("FRONTEND_URL")
+    if not FRONTEND_URL and not FRONTEND_URL_MOBILE and not para_webhook:
+        faltando.append("FRONTEND_URL (ou FRONTEND_URL_MOBILE)")
     if not PRICE_ID and not para_webhook:
         faltando.append("STRIPE_PRICE_ID")
     if not WEBHOOK_SECRET and para_webhook:
@@ -52,12 +53,31 @@ def buscar_usuario_por_subscription(db: Session, subscription_id: str) -> Usuari
     """Busca um usuário no banco de dados pelo ID da assinatura do Stripe (útil para webhooks)"""
     return db.query(Usuario).filter(Usuario.stripe_subscription_id == subscription_id).first()
 
+
+def obter_frontend_url(request: Request) -> str:
+    """Escolhe a URL de frontend com base na origem da requisição, com fallback para variáveis de ambiente."""
+    origin = (request.headers.get("origin") or "").rstrip("/")
+    frontend_default = (FRONTEND_URL or "").rstrip("/")
+    frontend_mobile = (FRONTEND_URL_MOBILE or "").rstrip("/")
+
+    if origin and frontend_mobile and origin == frontend_mobile:
+        return frontend_mobile
+    if origin and frontend_default and origin == frontend_default:
+        return frontend_default
+
+    # Fallback útil para rede local quando o origin vem com IP privado.
+    if origin.startswith("http://192.168.") and frontend_mobile:
+        return frontend_mobile
+
+    return frontend_default or frontend_mobile
+
 # ─────────────────────────────────────────
 # CRIAR SESSÃO DE CHECKOUT
 # ─────────────────────────────────────────
 
 @router.post("/criar-checkout")
 async def criar_checkout(
+    request: Request,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obter_usuario_atual)
 ):
@@ -69,12 +89,13 @@ async def criar_checkout(
             detail="Usuário já possui o plano Pro"
         )
     try:
+        frontend_url = obter_frontend_url(request)
         sessao = stripe.checkout.Session.create(
             payment_method_types=["card"],
             mode="subscription",
             line_items=[{"price": PRICE_ID, "quantity": 1}],
-            success_url=f"{FRONTEND_URL}/pagamento/sucesso?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{FRONTEND_URL}/planos",
+            success_url=f"{frontend_url}/pagamento/sucesso?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{frontend_url}/planos",
             metadata={"usuario_id": str(usuario.id)},
             customer_email=usuario.email
         )
@@ -82,7 +103,7 @@ async def criar_checkout(
     except stripe.StripeError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro interno ao criar sessão de checkout: {str(e)}"
+            detail="Erro interno ao criar sessão de checkout"
         )
         
 # ─────────────────────────────────────────

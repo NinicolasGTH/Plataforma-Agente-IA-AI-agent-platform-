@@ -8,7 +8,9 @@ load_dotenv()
 
 # Configurando JWT 
 
-SECRET_KEY = os.getenv("SECRET_KEY", "sua_chave_secreta_aqui")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY não configurada no ambiente")
 ALGORITHM = "HS256"
 ACESS_TOKEN_EXPIRE_MINUTES = 60*24*7 # 7 dias ao total.
 

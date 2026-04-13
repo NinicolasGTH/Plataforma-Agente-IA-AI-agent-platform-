@@ -41,7 +41,8 @@ def _enviar(destinatario: str, assunto: str, html: str):
             "to": [{"email": destinatario}],
             "subject": assunto,
             "htmlContent": html,
-        }
+        },
+        timeout=10,
     )
     if response.status_code not in (200, 201, 202):
         raise Exception(f"Brevo erro {response.status_code}: {response.text}")
