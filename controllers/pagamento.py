@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 from database import get_db
 from models.usuario import Usuario
@@ -39,12 +40,12 @@ def validar_config_stripe(para_webhook: bool = False) -> None:
 def evento_ja_processado(db: Session, event_id: str) -> bool:
     """Verifica se um evento do stripe já foi processado para evitar processamento duplicado (útil para webhooks)"""
     # Aqui você pode implementar uma lógica para armazenar os IDs dos eventos processados, por exemplo, em um banco de dados ou cache. 
-    return db.query(StripeEventoProcessado).filter(StripeEventoProcessado.evento_id == event_id).first() is not None
+    return db.query(StripeEventoProcessado).filter(StripeEventoProcessado.event_id == event_id).first() is not None
 
 # Modelo para armazenar eventos do Stripe já processados (para evitar processamento duplicado)
 def marcar_evento_processado(db: Session, event_id: str, event_type: str) -> None:
     """Marca um evento do Stripe como processado para evitar processamento duplicado (útil para webhooks)"""
-    db.add(StripeEventoProcessado(evento_id=event_id, tipo=event_type))
+    db.add(StripeEventoProcessado(event_id=event_id, tipo=event_type))
     # db.commit() não é necessário o db.commit() aqui, pois a função que chama marcar_evento_processado já deve estar dentro de uma transação que será comitada no final do processamento do webhook.
     
     # O importante é garantir que marcar_evento_processado seja chamada apenas uma vez por evento, e que o evento_ja_processado seja verificado no início do processamento do webhook para evitar processar o mesmo evento mais de uma vez.
@@ -138,8 +139,8 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="Assinatura inválida")        
    
-    event_id = evento.get("id")
-    event_type = evento.get("type")
+    event_id = evento.id
+    event_type = evento.type
     data = evento.get("data", {}).get("object", {})
     
     if not event_id or not event_type:
