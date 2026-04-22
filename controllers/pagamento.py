@@ -107,15 +107,15 @@ async def criar_checkout(
             detail="Erro interno ao criar sessão de checkout"
         )
         
+# ... (suas importações continuam iguais)
+
 # ─────────────────────────────────────────
 # WEBHOOK — STRIPE NOTIFICA O BACKEND
 # ─────────────────────────────────────────
 
-# O Stripe enviará uma notificação para este endpoint sempre que houver uma mudança no status da assinatura do usuário (ex: pagamento aprovado, falhou, cancelado). O backend processará essa notificação e atualizará o plano do usuário conforme necessário.
 @router.post("/webhook")
 async def webhook(request: Request, db: Session = Depends(get_db)):
-    """Recebe eventos do Stripe e atualiza  o plano do usuário conforme o status da assinatura (ENDPOINT: /pagamento/webhook)"""
-    validar_config_stripe(para_webhook=True) # True pois neste endpoint precisamos validar apenas as variáveis de ambiente do Stripe necessárias para processar o webhook (STRIPE_SECRET_KEY e STRIPE_WEBHOOK_SECRET)
+    validar_config_stripe(para_webhook=True)
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
     
@@ -130,18 +130,14 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
             payload, sig_header, WEBHOOK_SECRET
         )
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Payload inválido")
-    
-    except stripe.errors.SignatureVerificationError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Assinatura inválida")        
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Payload inválido")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Assinatura inválida")        
    
+    # --- CORREÇÃO 1: ACESSO POR ATRIBUTO (FIM DO ERRO ATTRIBUTERROR) ---
     event_id = evento.id
     event_type = evento.type
-    data = evento.get("data", {}).get("object", {})
+    data = evento.data.object  # No objeto Stripe, os dados ficam em .data.object
     
     if not event_id or not event_type:
         raise HTTPException(
@@ -149,14 +145,14 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
             detail="Evento Stripe inválido: ID ou tipo ausente"
         )
     
+    # --- CORREÇÃO 2: IDEMPOTÊNCIA (USANDO event_id QUE VOCÊ MUDOU NO MODEL) ---
     if evento_ja_processado(db, event_id):
-        logger.info(f"Evento Stripe {event_id} do tipo {event_type} já foi processado. Ignorando.")
+        logger.info(f"Evento Stripe {event_id} já foi processado. Ignorando.")
         return {"status": "ok", "duplicado": True}
-    
-    # Processar apenas eventos relacionados a assinaturas
     
     try:
         if event_type == "checkout.session.completed":
+            # Nota: 'data' (evento.data.object) funciona como dicionário, então .get() aqui está OK!
             usuario_id = data.get("metadata", {}).get("usuario_id")
             if usuario_id and str(usuario_id).isdigit():
                 usuario = db.query(Usuario).filter(Usuario.id == int(usuario_id)).first()
@@ -187,17 +183,14 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
             if subscription_id:
                 usuario = buscar_usuario_por_subscription(db, subscription_id)
             
-            if usuario:
-                if subscription_status in ["active", "trialing", "past_due"]:
-                    usuario.plano = "Pro"
-                    if subscription_status in ["active", "trialing"]:
-                        usuario.status = "Ativo"
-                    else:
-                        usuario.status = "Inadimplente"
-                elif subscription_status in ["canceled", "unpaid", "incomplete_expired"]:
-                    usuario.plano = "Gratuito"
-                    usuario.status = "Inativo"
-                    usuario.stripe_subscription_id = None
+                if usuario:
+                    if subscription_status in ["active", "trialing", "past_due"]:
+                        usuario.plano = "Pro"
+                        usuario.status = "Ativo" if subscription_status in ["active", "trialing"] else "Inadimplente"
+                    elif subscription_status in ["canceled", "unpaid", "incomplete_expired"]:
+                        usuario.plano = "Gratuito"
+                        usuario.status = "Inativo"
+                        usuario.stripe_subscription_id = None
         
         elif event_type == "customer.subscription.deleted":
             subscription_id = data.get("id")
@@ -208,21 +201,20 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
                     usuario.status = "Inativo"
                     usuario.stripe_subscription_id = None
 
+        # --- CORREÇÃO 3: SALVAR O SUCESSO ---
         marcar_evento_processado(db, event_id, event_type)
         db.commit()
-    
         
-        logger.info("Evento processado: %s (%s)", event_id, event_type)
+        logger.info("Evento processado com sucesso: %s (%s)", event_id, event_type)
         return {"status": "ok", "duplicado": False}
     
     except Exception as e:
         db.rollback()
-        logger.exception("Erro ao processar evento Stripe %s (%s): %s", event_id, event_type, str(e))
+        logger.exception("Erro ao processar evento Stripe %s: %s", event_id, str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao processar evento Stripe."
-        )             
-                        
+            detail="Erro interno ao processar o evento."
+        )  
 # ─────────────────────────────────────────
 # STATUS DO PLANO
 # ─────────────────────────────────────────
