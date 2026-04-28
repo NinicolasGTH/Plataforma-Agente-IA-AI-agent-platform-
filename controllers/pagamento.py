@@ -227,4 +227,35 @@ async def status_plano(usuario: Usuario= Depends(obter_usuario_atual)):
         "mensagens_hoje": usuario.mensagens_hoje if usuario.plano == "Gratuito" else None,
         "limite_diario": 20 if usuario.plano == "Gratuito" else None,
     }
-        
+
+    # ─────────────────────────────────────────
+# STATUS DA ASSINATURA
+# ─────────────────────────────────────────
+@router.get("/status-assinatura")
+async def status_assinatura(usuario: Usuario = Depends(obter_usuario_atual)):
+    """Retorna o status da assinatura do usuário"""
+    if usuario.plano == "Gratuito":
+        return {"status": "ok", "mensagem": "Usuário sem assinatura ativa"}
+    return {"status": "ok", "mensagem": "Assinatura ativa"}
+# ─────────────────────────────────────────
+# CANCELAR ASSINATURA
+# ─────────────────────────────────────────
+@router.get("/cancelar-assinatura")
+async def cancelar_assinatura(usuario: Usuario = Depends(obter_usuario_atual)):
+    """Cancela a assinatura do usuário"""
+    if usuario.plano == "Gratuito":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuário sem assinatura ativa"
+        )
+    try:
+        stripe.Subscription.delete(usuario.stripe_subscription_id)
+        return {"status": "ok", "mensagem": "Assinatura cancelada com sucesso!"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao cancelar a assinatura"
+        )
+# ─────────────────────────────────────────
+# CANCELAR ASSINATURA
+# ─────────────────────────────────────────
