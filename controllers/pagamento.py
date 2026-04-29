@@ -137,7 +137,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     # --- CORREÇÃO 1: ACESSO POR ATRIBUTO (FIM DO ERRO ATTRIBUTERROR) ---
     event_id = evento.id
     event_type = evento.type
-    data = evento.data.object  # No objeto Stripe, os dados ficam em .data.object
+    data = evento.data.object.to_dict()  # No objeto Stripe, os dados ficam em .data.object
     
     if not event_id or not event_type:
         raise HTTPException(
