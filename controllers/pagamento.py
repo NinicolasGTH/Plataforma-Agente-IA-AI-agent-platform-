@@ -225,7 +225,7 @@ async def status_plano(usuario: Usuario= Depends(obter_usuario_atual)):
     return{
         "plano": usuario.plano,
         "mensagens_hoje": usuario.mensagens_hoje if usuario.plano == "Gratuito" else None,
-        "limite_diario": 20 if usuario.plano == "Gratuito" else None,
+        "limite_diario": 35 if usuario.plano == "Gratuito" else None,
     }
 
     # ─────────────────────────────────────────
@@ -256,6 +256,9 @@ async def cancelar_assinatura(usuario: Usuario = Depends(obter_usuario_atual)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro interno ao cancelar a assinatura"
         )
+
+
+
 # ─────────────────────────────────────────
 # CANCELAR ASSINATURA
 # ─────────────────────────────────────────

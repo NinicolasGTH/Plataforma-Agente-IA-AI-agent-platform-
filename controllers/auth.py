@@ -175,7 +175,11 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
     # Cria token de acesso
     token_acesso = criar_acesso_token({"sub": usuario.nomeUsuario})
 
-    return {"acesso_token": token_acesso, "token_tipo": "bearer"}
+    return {
+        "acesso_token": token_acesso, 
+        "token_tipo": "bearer",
+        "plano": usuario.plano
+        }
 
 
 # Rota para enviar email de recuperação de senha

@@ -9,6 +9,7 @@ class LoginRequest(BaseModel):
 class Token(BaseModel):
     acesso_token: str
     token_tipo: str = "bearer"
+    plano: str
     
 class RecuperarSenhaRequest(BaseModel):
     email: str

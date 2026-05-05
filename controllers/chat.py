@@ -114,11 +114,11 @@ Você tem acesso APENAS às seguintes ferramentas:
 - calculator: para cálculos matemáticos e equações algébricas
 - get_weather: para consultar o clima atual de uma cidade
 - get_current_datetime: para obter a data e hora atual
+- web_search: para pesquisar na web.
 
 Regras importantes:
 - Use SOMENTE as ferramentas listadas acima
-- NUNCA tente usar brave_search, web_search ou qualquer outra ferramenta não listada
-- Se não puder responder com as ferramentas disponíveis, diga isso claramente ao usuário
+- PODE tentar usar brave_search, web_search ou qualquer outra ferramenta não listada, porém, com cautela e sem expor informações sensíveis
 - Para perguntas sobre notícias ou eventos recentes, informe que não tem acesso a essa informação
 """)
 
